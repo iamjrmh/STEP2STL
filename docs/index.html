@@ -3,70 +3,93 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>STEP → STL Converter</title>
+  <title>STEP2STL — Browser-based STEP to STL Converter</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
+  <!-- Background grid -->
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow" aria-hidden="true"></div>
+
   <div class="page">
 
-    <header>
-      <div class="wordmark">
-        <span class="wordmark-step">STEP</span>
-        <span class="wordmark-arrow">→</span>
-        <span class="wordmark-stl">STL</span>
+    <header class="site-header">
+      <div class="logo">
+        <svg class="logo-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <path d="M4 8L14 3L24 8V20L14 25L4 20V8Z" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+          <path d="M4 8L14 13M14 25V13M24 8L14 13" stroke="var(--accent)" stroke-width="1" opacity="0.5"/>
+          <circle cx="14" cy="13" r="2" fill="var(--accent)"/>
+        </svg>
+        <span class="logo-text">STEP<span class="logo-sep">2</span>STL</span>
       </div>
-      <p class="tagline">Drop your .step files. Get .stl files back. Originals moved to <code>/originals</code>.</p>
+      <div class="header-badge">v1.0 · browser-native</div>
     </header>
 
-    <main>
+    <main class="main">
+
+      <section class="hero">
+        <h1 class="hero-title">Convert <span class="hl">STEP</span> files to <span class="hl">STL</span><br/>directly in your browser</h1>
+        <p class="hero-sub">No uploads. No installs. Drag a folder or pick files — get a ZIP back with STLs at root and originals tucked in <code>originals/</code>.</p>
+      </section>
+
       <!-- Drop Zone -->
-      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Drop STEP files here or click to browse">
-        <div class="scan-line" id="scanLine"></div>
-        <div class="dropzone-inner">
-          <div class="drop-icon">
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="6" y="4" width="22" height="28" rx="2" stroke="currentColor" stroke-width="1.5"/>
-              <path d="M22 4v8h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              <path d="M20 22v8M16 26l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="30" cy="30" r="8" fill="#0d0f10" stroke="var(--accent)" stroke-width="1.5"/>
-              <path d="M30 26v8M26 30h8" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/>
+      <div class="dropzone" id="dropzone" tabindex="0" role="button"
+           aria-label="Drop STEP files or a folder here, or click to browse">
+        <div class="dz-scan" id="scanLine" aria-hidden="true"></div>
+        <div class="dz-corner tl" aria-hidden="true"></div>
+        <div class="dz-corner tr" aria-hidden="true"></div>
+        <div class="dz-corner bl" aria-hidden="true"></div>
+        <div class="dz-corner br" aria-hidden="true"></div>
+
+        <div class="dz-inner">
+          <div class="dz-icon" aria-hidden="true">
+            <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+              <rect x="7" y="4" width="24" height="30" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M25 4v9h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M22 23v9M17 28l5 4 5-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <p class="drop-primary">Drop .step / .stp files here</p>
-          <p class="drop-secondary">or <button class="browse-btn" id="browseBtn">browse files</button></p>
+          <p class="dz-primary">Drop a folder or .step / .stp files here</p>
+          <p class="dz-secondary">or <button class="dz-browse" id="browseBtn">browse files</button> · folders scanned recursively</p>
         </div>
         <input type="file" id="fileInput" multiple accept=".step,.stp" style="display:none" />
       </div>
 
       <!-- Queue -->
-      <div class="queue" id="queue" hidden>
-        <div class="queue-header">
-          <span class="queue-label">QUEUED</span>
-          <span class="queue-count" id="queueCount">0 files</span>
+      <div class="panel queue-panel" id="queue" hidden>
+        <div class="panel-header">
+          <span class="panel-label">QUEUED FILES</span>
+          <span class="panel-count" id="queueCount">0 files</span>
         </div>
         <ul class="file-list" id="fileList"></ul>
-        <div class="queue-actions">
-          <button class="btn-convert" id="convertBtn">Convert all</button>
-          <button class="btn-clear" id="clearBtn">Clear</button>
+        <div class="panel-footer">
+          <button class="btn-primary" id="convertBtn">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Convert &amp; Download ZIP
+          </button>
+          <button class="btn-ghost" id="clearBtn">Clear all</button>
         </div>
       </div>
 
       <!-- Log -->
-      <div class="log-panel" id="logPanel" hidden>
-        <div class="log-header">
-          <span class="log-label">OUTPUT</span>
-          <button class="log-clear" id="logClearBtn">clear</button>
+      <div class="panel log-panel" id="logPanel" hidden>
+        <div class="panel-header">
+          <span class="panel-label">OUTPUT LOG</span>
+          <button class="log-clear-btn" id="logClearBtn">clear</button>
         </div>
         <div class="log-body" id="logBody"></div>
       </div>
+
     </main>
 
-    <footer>
-      <p>Runs entirely in your browser via <a href="https://github.com/octocat/opencascade.js" target="_blank" rel="noopener">opencascade.js</a> — no files are uploaded anywhere.</p>
+    <footer class="site-footer">
+      <p>Powered by <a href="https://github.com/donalffons/opencascade.js" target="_blank" rel="noopener">opencascade.js</a> — runs entirely in your browser. No files leave your machine.</p>
     </footer>
 
   </div>
