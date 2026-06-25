@@ -22,9 +22,7 @@ No installs. No uploads. No server. No sign-up. Just drag, drop, and download.
 
 <br/>
 
-### [▶ &nbsp; Open STEP2STL](https://YOUR-USERNAME.github.io/YOUR-REPO/)
-
-<sub>Update this link after deploying - see <a href="#-deploying-to-github-pages">Deploying to GitHub Pages</a></sub>
+### [▶ &nbsp; Open STEP2STL](https://iamjrmh.github.io/STEP2STL/)
 
 <br/>
 
