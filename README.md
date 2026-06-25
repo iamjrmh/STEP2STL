@@ -2,13 +2,8 @@
 
 <br/>
 
-```
- ██████ ████████ ███████ ██████   ██████  ███████ ████████ ██
-██         ██    ██      ██   ██     ██   ██         ██    ██
- █████     ██    █████   ██████      ██   ███████    ██    ██
-     ██    ██    ██      ██          ██        ██    ██    ██
-██████     ██    ███████ ██       ██████  ███████    ██    ███████
-```
+![STEP2STL](STEP2STL.png)
+
 
 ### Convert `.step` / `.stp` to `.stl` - entirely in your browser.
 
@@ -111,16 +106,6 @@ npx serve .
 ```
 
 Then open **http://localhost:8080**.
-
----
-
-## Deploying to GitHub Pages
-
-1. Push this repo to GitHub
-2. Go to **Settings - Pages**
-3. Set **Source** to `Deploy from a branch` - branch `main` - folder `/` (root)
-4. Hit **Save** - your site goes live at `https://YOUR-USERNAME.github.io/YOUR-REPO/`
-5. Update the link at the top of this README
 
 ---
 
