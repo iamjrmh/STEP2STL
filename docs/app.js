@@ -17,26 +17,37 @@ const OC_WASM = 'https://unpkg.com/opencascade.js@1.1.1/dist/opencascade.wasm.wa
 
 let ocPromise = null;
 
+// v1.1.1's dist/opencascade.wasm.js is an ES module (it ends with
+// `export default opencascade;`). Loading it via a classic <script> tag
+// fails with a SyntaxError ("Unexpected token 'export'") because classic
+// scripts can't contain export statements — the script's `load` event
+// still fires (the network fetch itself succeeds), but `window.opencascade`
+// never gets defined, so the kernel never finishes initialising and the UI
+// hangs forever on "Initialising WASM kernel…". Loading it as a module via
+// dynamic import() parses it correctly.
 function loadOpenCascade() {
   if (ocPromise) return ocPromise;
-  ocPromise = new Promise((resolve, reject) => {
-    const script  = document.createElement('script');
-    script.src    = OC_JS;
-    script.onload = () => {
-      log('dim', '  Initialising WASM kernel…');
-      // v1.1.1 exposes a global `opencascade` factory function
-      window.opencascade({
+  ocPromise = (async () => {
+    let mod;
+    try {
+      mod = await import(OC_JS);
+    } catch (err) {
+      throw new Error('Could not load opencascade.js from unpkg — check your internet connection');
+    }
+    log('dim', '  Initialising WASM kernel…');
+    const initOpenCascade = mod.default;
+    try {
+      const oc = await initOpenCascade({
         locateFile: (f) => f.endsWith('.wasm') ? OC_WASM : f,
-      }).then(oc => {
-        log('success', '✓ OpenCASCADE kernel ready');
-        resolve(oc);
-      }).catch(err => reject(new Error('WASM init failed: ' + err.message)));
-    };
-    script.onerror = () => reject(new Error(
-      'Could not load opencascade.js from unpkg — check your internet connection'
-    ));
-    document.head.appendChild(script);
-  });
+      });
+      log('success', '✓ OpenCASCADE kernel ready');
+      return oc;
+    } catch (err) {
+      throw new Error('WASM init failed: ' + err.message);
+    }
+  })();
+  // Don't cache a failed load — let the next Convert click retry.
+  ocPromise.catch(() => { ocPromise = null; });
   return ocPromise;
 }
 
@@ -279,10 +290,18 @@ dropzone.addEventListener('dragleave', () => {
 
 dropzone.addEventListener('drop', async e => {
   e.preventDefault();
-  dropzone.classList.remove('drag-over');
-  scanLine.style.animationPlayState = 'paused';
-  const files = await getFilesFromDataTransfer(e.dataTransfer);
-  addFiles(files);
+  // Keep the scanning visual active while we recursively read the dropped
+  // folder/files — this can take a noticeable moment for large folders, and
+  // killing the animation immediately on drop made the box look frozen.
+  dropzone.classList.add('drag-over');
+  scanLine.style.animationPlayState = 'running';
+  try {
+    const files = await getFilesFromDataTransfer(e.dataTransfer);
+    addFiles(files);
+  } finally {
+    dropzone.classList.remove('drag-over');
+    scanLine.style.animationPlayState = 'paused';
+  }
 });
 
 dropzone.addEventListener('click', e => { if (e.target !== browseBtn) fileInput.click(); });
