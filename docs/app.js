@@ -239,7 +239,12 @@ function fmt(bytes) {
 
 function renderQueue() {
   fileListEl.innerHTML = '';
-  if (!fileQueue.length) { queueEl.hidden = true; return; }
+  if (!fileQueue.length) {
+    queueEl.hidden = true;
+    dropzone.hidden = false;
+    return;
+  }
+  dropzone.hidden = true;
   queueEl.hidden = false;
   queueCount.textContent = fileQueue.length + ' file' + (fileQueue.length !== 1 ? 's' : '');
   fileQueue.forEach((f, i) => {
