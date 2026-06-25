@@ -177,7 +177,7 @@ html, body {
   box-shadow: 0 0 0 1px var(--accent) inset, 0 0 40px rgba(0,212,255,0.06);
 }
 
-/* Corner brackets — the "HUD frame" signature element */
+/* Corner brackets - the "HUD frame" signature element */
 .dz-corner {
   position: absolute;
   width: 14px;
