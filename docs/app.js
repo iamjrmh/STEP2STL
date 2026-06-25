@@ -2,88 +2,156 @@
  * STEP2STL — app.js
  * Converts .step/.stp files to binary STL in the browser.
  *
- * Library: opencascade.js v1.1.1 (stable, no bundler required)
- *   JS:   https://unpkg.com/opencascade.js@1.1.1/dist/opencascade.wasm.js
- *   WASM: https://unpkg.com/opencascade.js@1.1.1/dist/opencascade.wasm.wasm
+ * Library: occt-import-js v0.0.23
+ *   JS:   https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/occt-import-js.js
+ *   WASM: https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/occt-import-js.wasm
+ *
+ * occt-import-js reads STEP files and returns a triangle mesh as JSON.
+ * We then hand-assemble a binary STL from those triangles.
  *
  * Folder drag-and-drop uses webkitGetAsEntry() to traverse recursively.
  */
 
 'use strict';
 
-// ── OpenCascade loader ───────────────────────────────────────────────────────
-const OC_JS   = 'https://unpkg.com/opencascade.js@1.1.1/dist/opencascade.wasm.js';
-const OC_WASM = 'https://unpkg.com/opencascade.js@1.1.1/dist/opencascade.wasm.wasm';
+// ── occt-import-js loader ────────────────────────────────────────────────────
+const OCCT_JS   = 'https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/occt-import-js.js';
+const OCCT_WASM = 'https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/occt-import-js.wasm';
 
 let ocPromise = null;
 
-// v1.1.1's dist/opencascade.wasm.js is an ES module (it ends with
-// `export default opencascade;`). Loading it via a classic <script> tag
-// fails with a SyntaxError ("Unexpected token 'export'") because classic
-// scripts can't contain export statements — the script's `load` event
-// still fires (the network fetch itself succeeds), but `window.opencascade`
-// never gets defined, so the kernel never finishes initialising and the UI
-// hangs forever on "Initialising WASM kernel…". Loading it as a module via
-// dynamic import() parses it correctly.
 function loadOpenCascade() {
   if (ocPromise) return ocPromise;
   ocPromise = (async () => {
-    let mod;
-    try {
-      mod = await import(OC_JS);
-    } catch (err) {
-      throw new Error('Could not load opencascade.js from unpkg — check your internet connection');
-    }
+    log('dim', '  Loading occt-import-js…');
+    // Load the UMD bundle via a classic script tag so the global
+    // `occtimportjs` function is available on window.
+    await new Promise((resolve, reject) => {
+      if (window.occtimportjs) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = OCCT_JS;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Could not load occt-import-js — check your internet connection'));
+      document.head.appendChild(s);
+    });
     log('dim', '  Initialising WASM kernel…');
-    const initOpenCascade = mod.default;
     try {
-      const oc = await initOpenCascade({
-        locateFile: (f) => f.endsWith('.wasm') ? OC_WASM : f,
+      const occt = await window.occtimportjs({
+        locateFile: (f) => f.endsWith('.wasm') ? OCCT_WASM : f,
       });
       log('success', '✓ OpenCASCADE kernel ready');
-      return oc;
+      return occt;
     } catch (err) {
       throw new Error('WASM init failed: ' + err.message);
     }
   })();
-  // Don't cache a failed load — let the next Convert click retry.
   ocPromise.catch(() => { ocPromise = null; });
   return ocPromise;
 }
 
 // ── STEP → binary STL ───────────────────────────────────────────────────────
-function convertStepToStl(oc, arrayBuffer, filename) {
-  const stepPath = '/' + filename;
-  const stlPath  = '/' + filename.replace(/\.(step|stp)$/i, '.stl');
+// occt-import-js gives us back a JSON mesh (positions + indices).
+// We convert that into the 80-byte-header + triangle-count + triangles
+// binary STL format.
+function convertStepToStl(occt, arrayBuffer, filename) {
+  const fileBuffer = new Uint8Array(arrayBuffer);
+  const result = occt.ReadStepFile(fileBuffer, null);
 
-  oc.FS.createDataFile('/', filename, new Uint8Array(arrayBuffer), true, true, true);
-
-  const reader = new oc.STEPControl_Reader_1();
-  const status = reader.ReadFile(stepPath);
-
-  if (status !== oc.IFSelect_ReturnStatus.IFSelect_RetDone) {
-    try { oc.FS.unlink(stepPath); } catch (_) {}
+  if (!result.success) {
     throw new Error('STEP reader returned error — file may be malformed');
   }
 
-  reader.TransferRoots(new oc.Message_ProgressRange_1());
-  const shape = reader.OneShape();
+  // Collect all triangles across all meshes.
+  // result.meshes[i].attributes.position.array  → flat Float32 vertex array
+  // result.meshes[i].index.array                → flat index array (triplets)
+  let totalTriangles = 0;
+  for (const mesh of result.meshes) {
+    if (mesh.index && mesh.index.array) {
+      totalTriangles += mesh.index.array.length / 3;
+    } else if (mesh.attributes && mesh.attributes.position) {
+      totalTriangles += mesh.attributes.position.array.length / 9;
+    }
+  }
 
-  // Mesh the shape
-  new oc.BRepMesh_IncrementalMesh_2(shape, 0.1, false, 0.5, false)
-    .Perform(new oc.Message_ProgressRange_1());
+  if (totalTriangles === 0) {
+    throw new Error('STEP file parsed but produced no geometry');
+  }
 
-  // Write binary STL
-  const writer = new oc.StlAPI_Writer();
-  writer.ASCIIMode = false;
-  writer.Write(shape, stlPath, new oc.Message_ProgressRange_1());
+  // Binary STL layout:
+  //   80 bytes header
+  //   4 bytes uint32 triangle count
+  //   50 bytes × N triangles  (12 normal + 3×12 vertices + 2 attribute)
+  const bufSize = 84 + totalTriangles * 50;
+  const buf = new ArrayBuffer(bufSize);
+  const view = new DataView(buf);
 
-  const stlBytes = oc.FS.readFile(stlPath, { encoding: 'binary' });
+  // Header (80 bytes) — just ASCII zeros, not read by viewers
+  const headerText = 'Binary STL generated by STEP2STL';
+  for (let i = 0; i < Math.min(headerText.length, 80); i++) {
+    view.setUint8(i, headerText.charCodeAt(i));
+  }
 
-  try { oc.FS.unlink(stepPath); } catch (_) {}
-  try { oc.FS.unlink(stlPath);  } catch (_) {}
+  view.setUint32(80, totalTriangles, true);
 
-  return stlBytes; // Uint8Array
+  let offset = 84;
+
+  for (const mesh of result.meshes) {
+    const pos = mesh.attributes && mesh.attributes.position
+      ? mesh.attributes.position.array
+      : null;
+    if (!pos) continue;
+
+    const idx = mesh.index ? mesh.index.array : null;
+    const triCount = idx ? idx.length / 3 : pos.length / 9;
+
+    for (let t = 0; t < triCount; t++) {
+      let ax, ay, az, bx, by, bz, cx, cy, cz;
+
+      if (idx) {
+        const ia = idx[t * 3] * 3;
+        const ib = idx[t * 3 + 1] * 3;
+        const ic = idx[t * 3 + 2] * 3;
+        ax = pos[ia]; ay = pos[ia + 1]; az = pos[ia + 2];
+        bx = pos[ib]; by = pos[ib + 1]; bz = pos[ib + 2];
+        cx = pos[ic]; cy = pos[ic + 1]; cz = pos[ic + 2];
+      } else {
+        const base = t * 9;
+        ax = pos[base];     ay = pos[base + 1]; az = pos[base + 2];
+        bx = pos[base + 3]; by = pos[base + 4]; bz = pos[base + 5];
+        cx = pos[base + 6]; cy = pos[base + 7]; cz = pos[base + 8];
+      }
+
+      // Compute face normal via cross product of (B−A) × (C−A)
+      const ux = bx - ax, uy = by - ay, uz = bz - az;
+      const vx = cx - ax, vy = cy - ay, vz = cz - az;
+      let nx = uy * vz - uz * vy;
+      let ny = uz * vx - ux * vz;
+      let nz = ux * vy - uy * vx;
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+      nx /= len; ny /= len; nz /= len;
+
+      // Normal (12 bytes)
+      view.setFloat32(offset,      nx, true); offset += 4;
+      view.setFloat32(offset,      ny, true); offset += 4;
+      view.setFloat32(offset,      nz, true); offset += 4;
+      // Vertex A
+      view.setFloat32(offset, ax, true); offset += 4;
+      view.setFloat32(offset, ay, true); offset += 4;
+      view.setFloat32(offset, az, true); offset += 4;
+      // Vertex B
+      view.setFloat32(offset, bx, true); offset += 4;
+      view.setFloat32(offset, by, true); offset += 4;
+      view.setFloat32(offset, bz, true); offset += 4;
+      // Vertex C
+      view.setFloat32(offset, cx, true); offset += 4;
+      view.setFloat32(offset, cy, true); offset += 4;
+      view.setFloat32(offset, cz, true); offset += 4;
+      // Attribute byte count (2 bytes, always 0)
+      view.setUint16(offset, 0, true); offset += 2;
+    }
+  }
+
+  return new Uint8Array(buf);
 }
 
 // ── Folder drag-and-drop ─────────────────────────────────────────────────────
@@ -324,7 +392,7 @@ convertBtn.addEventListener('click', async () => {
   clearBtn.disabled   = true;
 
   log('head', `── Converting ${fileQueue.length} file(s) ──`);
-  log('dim',  '  Loading OpenCASCADE (first run ~10 s, then cached)…');
+  log('dim',  '  Loading WASM kernel (first run ~5 s, then cached)…');
 
   let oc;
   try {
