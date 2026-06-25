@@ -1,98 +1,139 @@
-# STEP2STL
+<div align="center">
 
-**Convert `.step` / `.stp` files to `.stl` directly in your browser — no installs, no uploads, no server.**
+<br/>
 
-→ **[Open STEP2STL](https://YOUR-USERNAME.github.io/YOUR-REPO/)** *(update this link after deploying)*
+```
+ ██████ ████████ ███████ ██████   ██████  ███████ ████████ ██
+██         ██    ██      ██   ██     ██   ██         ██    ██
+ █████     ██    █████   ██████      ██   ███████    ██    ██
+     ██    ██    ██      ██          ██        ██    ██    ██
+██████     ██    ███████ ██       ██████  ███████    ██    ███████
+```
+
+### Convert `.step` / `.stp` to `.stl` - entirely in your browser.
+
+No installs. No uploads. No server. No sign-up. Just drag, drop, and download.
+
+<br/>
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge)](#-license)
+![Client-side](https://img.shields.io/badge/100%25-client--side-brightgreen?style=for-the-badge)
+![WebAssembly](https://img.shields.io/badge/powered%20by-WebAssembly-654ff0?style=for-the-badge&logo=webassembly&logoColor=white)
+
+<br/>
+
+### [▶ &nbsp; Open STEP2STL](https://YOUR-USERNAME.github.io/YOUR-REPO/)
+
+<sub>Update this link after deploying - see <a href="#-deploying-to-github-pages">Deploying to GitHub Pages</a></sub>
+
+<br/>
+
+</div>
 
 ---
 
 ## What it does
 
-Drop a folder or individual `.step` / `.stp` files onto the page. Hit **Convert & Download ZIP**. You get back a `.zip` containing:
+Drop a folder or a handful of `.step` / `.stp` files onto the page, hit **Convert & Download ZIP**, and instantly get back a tidy `.zip`:
 
 ```
-your_part.stl          ← converted STL file(s)
-originals/
-  your_part.step       ← original STEP files, moved here
+📦 your_download.zip
+├── part_a.stl
+├── part_b.stl
+└── originals/
+    ├── part_a.step
+    └── part_b.step
 ```
 
-That's it. Your files never leave your computer.
+STLs land at the root for easy slicing. Your originals are tucked in `originals/` in case you ever need them back. **Your files never leave your machine** - conversion runs entirely inside the browser tab.
 
 ---
 
-## How to use it
+## Quick start
 
-### Drag & drop a folder
-Drag any folder from your file explorer directly onto the drop zone. The site will scan it recursively for all `.step` and `.stp` files.
+```
+1. Drop a folder or files onto the drop zone
+2. Click "Convert & Download ZIP"
+3. Done
+```
 
-### Pick individual files
-Click **browse files** (or anywhere on the drop zone) to open a file picker and select one or more `.step` / `.stp` files.
+Folders are scanned **recursively** - drop an entire project directory and every `.step` / `.stp` file inside it gets picked up automatically.
 
-### Convert
-Once your files are queued, click **Convert & Download ZIP**. The first conversion takes around 10–15 seconds while the CAD kernel loads — this is a one-time download (~6 MB of WebAssembly) and is cached by your browser after that.
+> **First run takes ~5-10 seconds** while the CAD kernel (a ~6 MB WebAssembly module) loads. Your browser caches it after that, so every conversion afterward starts instantly.
 
 ---
 
 ## How it works
 
-STEP2STL uses **[opencascade.js](https://github.com/donalffons/opencascade.js)** — a WebAssembly port of the [OpenCASCADE](https://www.opencascade.com/) geometry kernel, the same engine used by FreeCAD, Salome, and many professional CAD tools. The conversion runs entirely on your CPU inside the browser tab.
+STEP2STL is powered by **[occt-import-js](https://github.com/kovacsv/occt-import-js)**, a WebAssembly build of [OpenCASCADE](https://www.opencascade.com/) - the same geometry kernel behind FreeCAD, Salome, and professional CAD tooling. The STEP file is parsed and tessellated entirely on your CPU inside the browser tab, then the resulting triangle mesh is assembled into binary STL.
 
-- **No server** — nothing is sent anywhere
-- **No install** — just a URL
-- **No sign-up** — open and use
+| | |
+|:---:|:---|
+| 🔒 | **Private by design** - nothing is uploaded, ever |
+| 📦 | **Zero install** - just open the URL and go |
+| ⚡ | **Batch conversion** - drop a whole folder, get a whole ZIP |
+| 🔁 | **Recursive scan** - nested folders, no problem |
 
 ---
 
-## Supported files
+## Supported formats
 
 | Input | Output |
-|-------|--------|
+|:---:|:---:|
 | `.step` | `.stl` (binary) |
-| `.stp`  | `.stl` (binary) |
+| `.stp` | `.stl` (binary) |
 
-Multi-body and assembly STEP files are supported. The mesh resolution is set to a general-purpose default (0.1 mm linear deflection, 0.5 rad angular deflection), which works well for most 3D printing and review use cases.
+Multi-body and assembly STEP files are supported. Mesh quality defaults to a solid general-purpose setting suited for 3D printing and visual review.
 
 ---
 
 ## Browser compatibility
 
-Works in any modern browser with WebAssembly support:
+Any modern browser with WebAssembly support works:
 
-| Browser | Support |
-|---------|---------|
+| Browser | Supported |
+|:---|:---:|
 | Chrome / Edge 89+ | ✅ |
 | Firefox 89+ | ✅ |
 | Safari 15+ | ✅ |
-| Mobile Chrome / Safari | ✅ (large files may be slow) |
+| Mobile Chrome / Safari | ✅ *(large files may be slow)* |
 
 ---
 
 ## Running locally
 
-No build step needed. Just open `docs/index.html` via a local server (required for WASM to load):
+No build step needed - just serve the files with any local server (required for WASM to load):
 
 ```bash
 # Python
-cd docs
 python -m http.server 8080
 
-# Node (npx)
-npx serve docs
+# Node
+npx serve .
 ```
 
-Then open `http://localhost:8080`.
+Then open **http://localhost:8080**.
 
 ---
 
 ## Deploying to GitHub Pages
 
 1. Push this repo to GitHub
-2. Go to **Settings → Pages**
-3. Set **Source** to `Deploy from a branch`, branch `main`, folder `/docs`
-4. Save — your site will be live at `https://YOUR-USERNAME.github.io/YOUR-REPO/`
+2. Go to **Settings - Pages**
+3. Set **Source** to `Deploy from a branch` - branch `main` - folder `/` (root)
+4. Hit **Save** - your site goes live at `https://YOUR-USERNAME.github.io/YOUR-REPO/`
+5. Update the link at the top of this README
 
 ---
 
 ## License
 
-MIT
+MIT - do whatever you want with it.
+
+---
+
+<div align="center">
+<br/>
+<sub>Built on top of <a href="https://github.com/kovacsv/occt-import-js">occt-import-js</a> and <a href="https://www.opencascade.com/">OpenCASCADE</a></sub>
+<br/><br/>
+</div>
